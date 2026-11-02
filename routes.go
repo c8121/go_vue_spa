@@ -11,13 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	DefaultDocument = "index.html"
-)
-
 type Resource struct {
-	RootFs     fs.FS
-	SubDirName string
+	RootFs          fs.FS
+	SubDirName      string
+	DefaultDocument string
 
 	httpFS http.FileSystem
 }
@@ -39,16 +36,22 @@ func CreateRoutesFromFS(router *gin.Engine, resources []Resource) {
 			httpFS := resource.GetHttpFS()
 			var fspath string
 			if path == "/" {
-				fspath = filepath.Join(resource.SubDirName, DefaultDocument)
-				file, err := httpFS.Open(fspath)
-				if err == nil {
-					defer util.CloseOrLog(file)
-					stat, err := file.Stat()
+
+				if resource.DefaultDocument != "" {
+					fspath = filepath.Join(resource.SubDirName, resource.DefaultDocument)
+					file, err := httpFS.Open(fspath)
 					if err == nil {
-						http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
+						defer util.CloseOrLog(file)
+						stat, err := file.Stat()
+						if err == nil {
+							http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
+							return
+						}
 					}
 				}
+
 			} else {
+
 				fspath = filepath.Join(resource.SubDirName, strings.TrimPrefix(path, "/"))
 				if fspath != "" {
 					stat, err := fs.Stat(resource.RootFs, fspath)
@@ -61,6 +64,8 @@ func CreateRoutesFromFS(router *gin.Engine, resources []Resource) {
 				}
 			}
 		}
+
+		http.NotFound(c.Writer, c.Request)
 	}))
 
 }
