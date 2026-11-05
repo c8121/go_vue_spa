@@ -6,7 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ErrorResponse struct {
+type Response struct {
+	Status  string
 	Message string
 }
 
@@ -17,7 +18,8 @@ func AboutWithStatus(c *gin.Context, code int, message string, err error) {
 		slog.Warn("Abort request", "code", code, "message", message)
 	}
 
-	c.AbortWithStatusJSON(code, &ErrorResponse{
+	c.AbortWithStatusJSON(code, &Response{
+		Status:  "error",
 		Message: message,
 	})
 }
