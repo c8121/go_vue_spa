@@ -4,13 +4,19 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/c8121/go_vue_spa/auth"
 	"github.com/c8121/go_vue_spa/notifications"
 	"github.com/gin-gonic/gin"
+
+	cache "github.com/go-pkgz/expirable-cache/v3"
 )
 
-var notifiedNoUsers = false
+var (
+	notifiedNoUsers = false
+	authCache       = cache.NewCache[string, *auth.AuthenticatedUser]().WithTTL(time.Second * 90)
+)
 
 func UserAuthRequiredHandler(handlerFunc func(c *gin.Context)) func(c *gin.Context) {
 
@@ -47,6 +53,13 @@ func CheckBasicAuth(c *gin.Context) error {
 		return errors.New("authentication required")
 	}
 
+	user, authenticated := authCache.Get(username)
+	if authenticated {
+		slog.Info("+++++ AUTH")
+		c.Set("user", user)
+		return nil
+	}
+
 	user, err := auth.GetAuthenticator().Authenticate(username, []byte(password))
 	if err != nil || user == nil {
 		slog.Warn("Auth error", "error", err)
@@ -54,6 +67,8 @@ func CheckBasicAuth(c *gin.Context) error {
 	}
 
 	c.Set("user", user)
+	slog.Info("***** AUTH")
+	authCache.Add(username, user)
 	return nil
 }
 
