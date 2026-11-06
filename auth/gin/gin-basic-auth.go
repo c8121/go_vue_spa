@@ -14,6 +14,8 @@ import (
 )
 
 var (
+	BasicAuthRealm = "SPA"
+
 	notifiedNoUsers = false
 	authCache       = cache.NewCache[string, *auth.AuthenticatedUser]().WithTTL(time.Second * 90)
 )
@@ -55,7 +57,6 @@ func CheckBasicAuth(c *gin.Context) error {
 
 	user, authenticated := authCache.Get(username)
 	if authenticated {
-		slog.Info("+++++ AUTH")
 		c.Set("user", user)
 		return nil
 	}
@@ -67,12 +68,11 @@ func CheckBasicAuth(c *gin.Context) error {
 	}
 
 	c.Set("user", user)
-	slog.Info("***** AUTH")
 	authCache.Add(username, user)
 	return nil
 }
 
 func RespondBasicAuthRequired(c *gin.Context) {
-	c.Header("WWW-Authenticate", "Basic realm=\"Asset Storage\", charset=\"UTF-8\"")
+	c.Header("WWW-Authenticate", "Basic realm=\""+BasicAuthRealm+"\", charset=\"UTF-8\"")
 	c.String(http.StatusUnauthorized, "Unauthorized")
 }

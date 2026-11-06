@@ -41,10 +41,6 @@ export default {
             const dialogElement = this.element.querySelector(".modal-dialog");
             dialogElement.setAttribute("style", style);
         },
-        setContent(html) {
-            const bodyElement = this.element.querySelector(".modal-body");
-            bodyElement.innerHTML = html;
-        },
         setContentComponent(component, createAppArgs) {
             const bodyElement = this.element.querySelector(".modal-body");
             this.app = createApp(component, createAppArgs);

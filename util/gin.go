@@ -11,7 +11,7 @@ type Response struct {
 	Message string
 }
 
-func AboutWithStatus(c *gin.Context, code int, message string, err error) {
+func AbortWithStatus(c *gin.Context, code int, message string, err error) {
 	if err != nil {
 		slog.Warn("Abort request", "code", code, "message", message, "error", err)
 	} else {
