@@ -7,14 +7,17 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/c8121/go_vue_spa/util"
 	"golang.org/x/crypto/bcrypt"
 )
 
 const (
-	DefaultFilePermissions = 0700
+	DefaultFilePermissions = 0600
 )
 
 type LocalFileAuthenticator struct {
@@ -22,7 +25,7 @@ type LocalFileAuthenticator struct {
 	filePermissions int
 	pwdCost         int
 
-	users map[string]string
+	users *UserMap
 }
 
 func NewLocalFileAuthenticator(userFile string, pwdCost int) (*LocalFileAuthenticator, error) {
@@ -40,11 +43,48 @@ func NewLocalFileAuthenticator(userFile string, pwdCost int) (*LocalFileAuthenti
 	auth := &LocalFileAuthenticator{
 		userFile:        userFile,
 		filePermissions: DefaultFilePermissions,
-		users:           make(map[string]string),
+		users:           NewUserMap(),
 		pwdCost:         pwdCost,
 	}
 
 	return auth, nil
+}
+
+type UserMap struct {
+	users map[string]string
+	mutex sync.Mutex
+}
+
+func NewUserMap() *UserMap {
+	users := make(map[string]string)
+	return &UserMap{
+		users: users,
+	}
+}
+
+func (u *UserMap) GetHash(username string) (string, bool) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
+	hash, ok := u.users[username]
+	return hash, ok
+}
+
+func (u *UserMap) SetHash(username string, hash string) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
+	u.users[username] = hash
+}
+
+func (u *UserMap) Walk(handler func(username string, hash string) error) error {
+	for u, h := range u.users {
+		err := handler(u, h)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byte) (*AuthenticatedUser, error) {
@@ -52,8 +92,13 @@ func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byt
 		return nil, fmt.Errorf("user does not exist")
 	}
 
-	pwdHash, _ := a.users[username]
-	err := bcrypt.CompareHashAndPassword([]byte(pwdHash), credentials)
+	username, err := a.normalizeUserName(username)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	pwdHash, _ := a.users.GetHash(username)
+	err = bcrypt.CompareHashAndPassword([]byte(pwdHash), credentials)
 	if err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
@@ -74,7 +119,14 @@ func (a *LocalFileAuthenticator) UserExists(username string) bool {
 	if len(username) == 0 {
 		return false
 	}
-	_, ok := a.users[username]
+
+	username, err := a.normalizeUserName(username)
+	if err != nil {
+		slog.Warn("Invalid username", "error", err)
+		return false
+	}
+
+	_, ok := a.users.GetHash(username)
 	return ok
 }
 
@@ -89,15 +141,18 @@ func (a *LocalFileAuthenticator) AddOrUpdateUser(username string, password []byt
 		return err
 	}
 
-	username = strings.ToLower(username)
+	username, err = a.normalizeUserName(username)
+	if err != nil {
+		return err
+	}
 
-	_, ok := a.users[username]
+	_, ok := a.users.GetHash(username)
 	if ok {
 		slog.Info("Update user", "username", username)
 	} else {
 		slog.Info("Add new user", "username", username)
 	}
-	a.users[username] = pwdHash
+	a.users.SetHash(username, pwdHash)
 	return nil
 }
 
@@ -138,31 +193,71 @@ func (a *LocalFileAuthenticator) ReadUsers() error {
 			continue
 		}
 
-		a.users[strings.ToLower(s[0:p])] = s[p+1:]
+		username, err := a.normalizeUserName(s[0:p])
+		if err != nil {
+			slog.Warn("Invalid line", "error", err)
+			continue
+		}
+
+		a.users.SetHash(username, strings.TrimSpace(s[p+1:]))
 	}
 	return nil
 }
 
 func (a *LocalFileAuthenticator) SaveUsers() error {
 
-	f, err := os.Create(a.userFile)
+	f, err := os.CreateTemp(filepath.Dir(a.userFile), filepath.Base(a.userFile))
 	if err != nil {
 		return err
 	}
-	defer util.CloseOrLog(f)
 
 	w := bufio.NewWriter(f)
-	for name, hash := range a.users {
-		_, err := w.WriteString(name + "\t" + hash + "\n")
+	err = a.users.Walk(func(username string, hash string) error {
+		_, err := w.WriteString(username + "\t" + hash + "\n")
 		if err != nil {
 			return err
 		}
+		return nil
+	})
+	if err != nil {
+		util.CloseOrLog(f)
+		return err
 	}
+
 	err = w.Flush()
 	if err != nil {
+		util.CloseOrLog(f)
 		return err
+	}
+	util.CloseOrLog(f)
+
+	err = os.Rename(f.Name(), a.userFile)
+	if err != nil {
+		slog.Warn("Failed to rename", "file", f.Name(), "dest", a.userFile, "error", err)
+	}
+
+	err = os.Chmod(a.userFile, os.FileMode(a.filePermissions))
+	if err != nil {
+		slog.Warn("Failed to change permissions", "file", a.userFile, "error", err)
 	}
 
 	slog.Info("Updated user file", "path", a.userFile)
 	return nil
+}
+
+func (a *LocalFileAuthenticator) normalizeUserName(username string) (string, error) {
+	username = strings.TrimSpace(username)
+	username = strings.ToLower(username)
+
+	space, err := regexp.Compile(`\s+`)
+	if err != nil {
+		return username, err
+	}
+	username = space.ReplaceAllString(username, "")
+
+	if len(username) == 0 {
+		return username, fmt.Errorf("username is empty")
+	}
+
+	return username, nil
 }
