@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -50,7 +49,7 @@ func CheckBasicAuth(c *gin.Context) error {
 
 	username, password, ok := c.Request.BasicAuth()
 	if !ok {
-		return errors.New("authentication required")
+		return auth.ErrAuthRequired
 	}
 
 	pwBytes := []byte(password)
@@ -61,9 +60,13 @@ func CheckBasicAuth(c *gin.Context) error {
 	}
 
 	user, err := auth.GetAuthenticator().Authenticate(username, pwBytes)
-	if err != nil || user == nil {
+	if err != nil {
 		slog.Warn("Auth error", "error", err)
-		return err
+		return auth.ErrAuthFailed
+	}
+	if user == nil {
+		slog.Warn("Authenticator returned no user")
+		return auth.ErrNoSuchUser
 	}
 
 	c.Set("user", user)
