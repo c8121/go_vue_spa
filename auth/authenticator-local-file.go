@@ -78,8 +78,11 @@ func (u *UserMap) SetHash(username string, hash string) {
 }
 
 func (u *UserMap) Walk(handler func(username string, hash string) error) error {
-	for u, h := range u.users {
-		err := handler(u, h)
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
+	for n, h := range u.users {
+		err := handler(n, h)
 		if err != nil {
 			return err
 		}
