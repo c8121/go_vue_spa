@@ -91,6 +91,7 @@ func (u *UserMap) Walk(handler func(username string, hash string) error) error {
 
 func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byte) (*AuthenticatedUser, error) {
 	if !a.UserExists(username) {
+		_, _ = a.createPasswordHash([]byte("create hash to avoid timing difference on auth"))
 		return nil, fmt.Errorf("user does not exist")
 	}
 
@@ -107,8 +108,8 @@ func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byt
 	return &AuthenticatedUser{Username: username}, nil
 }
 
-func createPasswordHash(password []byte, pwdCost int) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword(password, pwdCost)
+func (a *LocalFileAuthenticator) createPasswordHash(password []byte) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword(password, a.pwdCost)
 	if err != nil {
 		fmt.Printf("Cannot create hash: %s\n", err)
 		return "", err
@@ -138,7 +139,7 @@ func (a *LocalFileAuthenticator) AddOrUpdateUser(username string, password []byt
 		return errors.New("empty user name not allowed")
 	}
 
-	pwdHash, err := createPasswordHash(password, a.pwdCost)
+	pwdHash, err := a.createPasswordHash(password)
 	if err != nil {
 		return err
 	}

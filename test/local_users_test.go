@@ -31,17 +31,17 @@ func TestLocalFileAuthenticator(t *testing.T) {
 
 	_, err = authenticator.Authenticate("test-false", []byte("test"))
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("expected auth error")
 	}
 
 	_, err = authenticator.Authenticate("test", []byte("test-false"))
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("expected auth error")
 	}
 
 	_, err = authenticator.Authenticate("test-false", []byte("test-false"))
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("expected auth error")
 	}
 
 	err = authenticator.SaveUsers()
