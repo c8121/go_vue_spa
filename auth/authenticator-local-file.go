@@ -92,18 +92,19 @@ func (u *UserMap) Walk(handler func(username string, hash string) error) error {
 func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byte) (*AuthenticatedUser, error) {
 	if !a.UserExists(username) {
 		_, _ = a.createPasswordHash([]byte("create hash to avoid timing difference on auth"))
-		return nil, fmt.Errorf("user does not exist")
+		return nil, ErrNoSuchUser
 	}
 
 	username, err := a.normalizeUserName(username)
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		slog.Warn("Failed to normalize", "username", username, "err", err)
+		return nil, ErrAuthFailed
 	}
 
 	pwdHash, _ := a.users.GetHash(username)
 	err = bcrypt.CompareHashAndPassword([]byte(pwdHash), credentials)
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, ErrAuthFailed
 	}
 	return &AuthenticatedUser{Username: username}, nil
 }
@@ -111,7 +112,6 @@ func (a *LocalFileAuthenticator) Authenticate(username string, credentials []byt
 func (a *LocalFileAuthenticator) createPasswordHash(password []byte) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword(password, a.pwdCost)
 	if err != nil {
-		fmt.Printf("Cannot create hash: %s\n", err)
 		return "", err
 	}
 
@@ -252,7 +252,7 @@ func (a *LocalFileAuthenticator) SaveUsers() error {
 // normalizeUserName removes all whitespace (even contained username) and converts to lower case.
 func (a *LocalFileAuthenticator) normalizeUserName(username string) (string, error) {
 	username = strings.TrimSpace(username)
-	strings.Join(strings.Fields(username), "")
+	username = strings.Join(strings.Fields(username), "")
 	username = strings.ToLower(username)
 
 	if len(username) == 0 {
