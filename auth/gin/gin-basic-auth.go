@@ -9,15 +9,13 @@ import (
 	"github.com/c8121/go_vue_spa/auth"
 	"github.com/c8121/go_vue_spa/notifications"
 	"github.com/gin-gonic/gin"
-
-	cache "github.com/go-pkgz/expirable-cache/v3"
 )
 
 var (
 	BasicAuthRealm = "SPA"
 
 	notifiedNoUsers = false
-	authCache       = cache.NewCache[string, *auth.AuthenticatedUser]().WithTTL(time.Second * 90)
+	authCache       = auth.NewAuthCache(time.Second * 90)
 )
 
 func UserAuthRequiredHandler(handlerFunc func(c *gin.Context)) func(c *gin.Context) {
@@ -55,20 +53,21 @@ func CheckBasicAuth(c *gin.Context) error {
 		return errors.New("authentication required")
 	}
 
-	user, authenticated := authCache.Get(username)
+	pwBytes := []byte(password)
+	user, authenticated := authCache.Get(username, pwBytes)
 	if authenticated {
 		c.Set("user", user)
 		return nil
 	}
 
-	user, err := auth.GetAuthenticator().Authenticate(username, []byte(password))
+	user, err := auth.GetAuthenticator().Authenticate(username, pwBytes)
 	if err != nil || user == nil {
 		slog.Warn("Auth error", "error", err)
 		return err
 	}
 
 	c.Set("user", user)
-	authCache.Add(username, user)
+	authCache.Add(username, pwBytes)
 	return nil
 }
 
