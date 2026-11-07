@@ -1,6 +1,8 @@
 package util
 
 import (
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"strings"
@@ -52,4 +54,17 @@ func IsExistingFile(path string, level slog.Level) bool {
 		return false
 	}
 	return true
+}
+
+// CreateDirIfNotExists checks if directory exists, if not it creates it
+func CreateDirIfNotExists(path string, perm fs.FileMode) error {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(path, perm); err != nil {
+			slog.Error("failed to create database directory", "error", err)
+			return err
+		} else {
+			slog.Info("Created directory", "path", path)
+		}
+	}
+	return nil
 }
