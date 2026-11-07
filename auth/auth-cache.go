@@ -18,9 +18,9 @@ func NewAuthCache(ttl time.Duration) *AuthCache {
 	}
 }
 
-func (ac *AuthCache) Add(username string, password []byte) {
+func (ac *AuthCache) Add(username string, password []byte, user *AuthenticatedUser) {
 	key := ac.createCacheKey(username, password)
-	ac.cache.Add(key, &AuthenticatedUser{})
+	ac.cache.Add(key, user)
 }
 
 func (ac *AuthCache) Get(username string, password []byte) (*AuthenticatedUser, bool) {

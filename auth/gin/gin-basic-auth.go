@@ -67,7 +67,7 @@ func CheckBasicAuth(c *gin.Context) error {
 	}
 
 	c.Set("user", user)
-	authCache.Add(username, pwBytes)
+	authCache.Add(username, pwBytes, user)
 	return nil
 }
 
