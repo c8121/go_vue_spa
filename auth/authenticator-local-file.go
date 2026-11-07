@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -237,6 +236,7 @@ func (a *LocalFileAuthenticator) SaveUsers() error {
 	err = os.Rename(f.Name(), a.userFile)
 	if err != nil {
 		slog.Warn("Failed to rename", "file", f.Name(), "dest", a.userFile, "error", err)
+		return err
 	}
 
 	err = os.Chmod(a.userFile, os.FileMode(a.filePermissions))
@@ -248,15 +248,11 @@ func (a *LocalFileAuthenticator) SaveUsers() error {
 	return nil
 }
 
+// normalizeUserName removes all whitespace (even contained username) and converts to lower case.
 func (a *LocalFileAuthenticator) normalizeUserName(username string) (string, error) {
 	username = strings.TrimSpace(username)
+	strings.Join(strings.Fields(username), "")
 	username = strings.ToLower(username)
-
-	space, err := regexp.Compile(`\s+`)
-	if err != nil {
-		return username, err
-	}
-	username = space.ReplaceAllString(username, "")
 
 	if len(username) == 0 {
 		return username, fmt.Errorf("username is empty")
