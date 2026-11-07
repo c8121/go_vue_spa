@@ -63,7 +63,7 @@ func main() {
 		{RootFs: httproot.FS, SubDirName: httproot.VueUI},
 	})
 
-	// Register your API routes here (they need their own auth handler).
+	// Register your API routes here (see "Protecting API routes" below).
 
 	_ = r.Run(":8080")
 }
@@ -85,14 +85,95 @@ Minimal `app-ui/index.html`:
 <script type="module" src="/app.js"></script>
 ```
 
+Request paths are resolved inside the resource's `SubDirName` only; `..` segments cannot escape it.
+Directories are never listed.
+
+## Authentication
+
+Authentication is HTTP Basic Auth against an `auth.Authenticator`. The built-in
+`LocalFileAuthenticator` stores users in a text file (`username<TAB>bcrypt-hash`).
+
+- **User names** are case-insensitive and whitespace is ignored (`Alice`, ` alice ` and `ALICE` are the same user).
+- **User file:** lines starting with `#` and invalid lines are ignored. Saving writes a temp file and renames it
+  (atomic), with mode `0600`.
+- **No user file** (or no users) means authentication is enabled but nobody can log in.
+- **No authenticator set** means everything is served **without** authentication (a warning is logged).
+- **Login cache:** successful logins are cached for 90 seconds (keyed by user name *and* password), so a page
+  load does not run bcrypt for every asset. Changed passwords or removed users therefore take up to 90 seconds
+  to take effect. Failed logins are never cached.
+- **Realm:** set `authgin.BasicAuthRealm` (default `"SPA"`).
+
+### Protecting API routes
+
+Only the static file handler is protected automatically. Wrap your own handlers:
+
+```go
+import (
+	"github.com/c8121/go_vue_spa/auth"
+	authgin "github.com/c8121/go_vue_spa/auth/gin"
+)
+
+r.GET("/api/items", authgin.UserAuthRequiredHandler(func(c *gin.Context) {
+	user, _ := c.Get("user") // *auth.AuthenticatedUser
+	c.JSON(200, gin.H{"user": user.(*auth.AuthenticatedUser).Username})
+}))
+```
+
+### Custom authenticators
+
+Implement `auth.Authenticator` (`Authenticate(username string, credentials []byte) (*AuthenticatedUser, error)`)
+and register it with `auth.SetAuthenticator`. Return an error on failure; returning `(nil, nil)` is treated as
+a failed login.
+
 ## Managing users
 
-Users live in a text file (`username<TAB>bcrypt-hash`). Add or edit them with the CLI helper from `auth/cli`
-(call `ReadUsers()` first, then e.g. `CliLocalFileUserEdit("alice", true)` to add a user, `false` to change a password).
-If the user file does not exist, authentication is enabled but nobody can log in.
+Users are managed with the CLI helper in `auth/cli`. It needs the `LocalFileAuthenticator` to be registered
+via `auth.SetAuthenticator` and the existing users loaded via `ReadUsers()`:
 
-## Notes
+```go
+import authcli "github.com/c8121/go_vue_spa/auth/cli"
+
+authcli.CliLocalFileUserEdit("alice", true)  // add user (prompts for the password)
+authcli.CliLocalFileUserEdit("alice", false) // change password
+```
+
+## Dialog helper
+
+`httproot/vue-ui/js/dialog.js` creates Bootstrap modals whose body is a Vue component. It expects `bootstrap`
+as a global (loaded via the script tag above) and the `vue` import map entry.
+
+```js
+import dialog from '/js/dialog.js'
+
+const dlg = dialog.create()
+dlg.setTitle('Rename')
+dlg.setConfirmText('Save')
+dlg.setContentComponent({
+    template: `<input class="form-control" v-model="name">`,
+    data() { return {name: ''} }
+})
+dlg.addOnConfirmListener(() => console.log('confirmed'))
+```
+
+There is intentionally no method to set raw HTML as dialog content (XSS risk); use a component.
+
+## Notes and limitations
 
 - Use **hash routing** (`createWebHashHistory`) – only `/` serves the default document, there is no history-mode fallback.
 - Basic Auth sends credentials with every request: **run it behind TLS**.
-- The dialog helper expects `bootstrap` as a global (loaded via the script tag above).
+- There is no rate limiting or lockout for failed logins; put the app behind a reverse proxy if it is exposed.
+- All HTTP methods are answered by the static file handler.
+- The embedded Bootstrap/Vue files include source maps and unminified variants, so the binary is about 12 MB larger
+  than strictly necessary.
+
+## Development
+
+```
+go test -race ./test/...
+```
+
+Note: the login cache is package-level state, so tests that log in should use unique user names.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled Vue, Vue Router, Bootstrap and Bootstrap Icons are MIT-licensed as well.
