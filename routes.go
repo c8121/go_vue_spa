@@ -30,45 +30,51 @@ func CreateRoutesFromFS(router *gin.Engine, resources []Resource) {
 
 	router.NoRoute(auth.UserAuthRequiredHandler(func(c *gin.Context) {
 
-		requestPath := cleanPath(c.Request.URL.Path)
-
 		for _, resource := range resources {
-
-			httpFS := resource.GetHttpFS()
-			var fileSystemPath string
-
-			fileSystemPath = path.Join(cleanPath(resource.SubDirName), requestPath)
-			if fileSystemPath == "" {
-				fileSystemPath = "."
-			}
-
-			stat, err := fs.Stat(resource.RootFs, fileSystemPath)
-			if err == nil {
-				if stat.Mode().IsRegular() {
-					file, err := httpFS.Open(fileSystemPath)
-					if err == nil {
-						defer util.CloseOrLog(file)
-						http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
-						return
-					}
-				} else if resource.DefaultDocument != "" && stat.Mode().IsDir() {
-					fileSystemPath = path.Join(fileSystemPath, resource.DefaultDocument)
-					stat, err = fs.Stat(resource.RootFs, fileSystemPath)
-					if err == nil {
-						file, err := httpFS.Open(fileSystemPath)
-						if err == nil {
-							defer util.CloseOrLog(file)
-							http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
-							return
-						}
-					}
-				}
+			if ServeFromResource(c, resource) {
+				return
 			}
 		}
 
 		http.NotFound(c.Writer, c.Request)
 	}))
 
+}
+
+func ServeFromResource(c *gin.Context, resource Resource) bool {
+
+	httpFS := resource.GetHttpFS()
+	var fileSystemPath string
+
+	requestPath := cleanPath(c.Request.URL.Path)
+	fileSystemPath = path.Join(cleanPath(resource.SubDirName), requestPath)
+	if fileSystemPath == "" {
+		fileSystemPath = "."
+	}
+
+	stat, err := fs.Stat(resource.RootFs, fileSystemPath)
+	if err == nil {
+		if stat.Mode().IsRegular() {
+			file, err := httpFS.Open(fileSystemPath)
+			if err == nil {
+				defer util.CloseOrLog(file)
+				http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
+				return true
+			}
+		} else if resource.DefaultDocument != "" && stat.Mode().IsDir() {
+			fileSystemPath = path.Join(fileSystemPath, resource.DefaultDocument)
+			stat, err = fs.Stat(resource.RootFs, fileSystemPath)
+			if err == nil {
+				file, err := httpFS.Open(fileSystemPath)
+				if err == nil {
+					defer util.CloseOrLog(file)
+					http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), file)
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func cleanPath(p string) string {
