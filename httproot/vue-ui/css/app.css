@@ -1,0 +1,58 @@
+section {
+    padding: 2rem 3rem 5rem;
+}
+
+/* ---- Layout: sidebar + content ---- */
+
+:root {
+    --sidebar-width: 15rem;
+}
+
+#sidebar {
+    --bs-offcanvas-width: min(22rem, 85vw); /* small screens: off-canvas */
+    background-color: var(--bs-tertiary-bg) !important;
+}
+
+#sidebarResizer {
+    cursor: col-resize;
+    background-color: var(--bs-border-color);
+    touch-action: none;
+}
+
+#sidebarResizer:hover {
+    background-color: var(--bs-primary);
+}
+
+/* Large screens: static sidebar, resizable, scrolls on its own */
+@media (min-width: 992px) {
+    #app {
+        display: flex;
+        align-items: flex-start;
+        min-height: 100vh;
+    }
+
+    #sidebar {
+        flex: 0 0 var(--sidebar-width);
+        width: var(--sidebar-width);
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        z-index: 1090;
+    }
+
+    #sidebarResizer {
+        flex: 0 0 6px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+    }
+
+    #content {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+}
+
+.offcanvas-body {
+    overflow-y: visible;
+}
