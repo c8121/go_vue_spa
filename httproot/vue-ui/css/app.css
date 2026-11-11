@@ -4,34 +4,38 @@ section {
 
 /* ---- Layout: sidebar + content ---- */
 
-:root {
+.app-with-sidebar {
     --sidebar-width: 15rem;
 }
 
-#sidebar {
+.app-with-sidebar .sidebar {
     --bs-offcanvas-width: min(22rem, 85vw); /* small screens: off-canvas */
     background-color: var(--bs-tertiary-bg) !important;
 }
 
-#sidebarResizer {
+.sidebarResizer {
     cursor: col-resize;
     background-color: var(--bs-border-color);
     touch-action: none;
 }
 
-#sidebarResizer:hover {
+.sidebarResizer:hover {
     background-color: var(--bs-primary);
+}
+
+.app-with-sidebar .offcanvas-body {
+    overflow-y: visible;
 }
 
 /* Large screens: static sidebar, resizable, scrolls on its own */
 @media (min-width: 992px) {
-    #app {
+    .app-with-sidebar {
         display: flex;
         align-items: flex-start;
         min-height: 100vh;
     }
 
-    #sidebar {
+    .app-with-sidebar .sidebar {
         flex: 0 0 var(--sidebar-width);
         width: var(--sidebar-width);
         position: sticky;
@@ -40,19 +44,15 @@ section {
         z-index: 1090;
     }
 
-    #sidebarResizer {
+    .app-with-sidebar .sidebarResizer {
         flex: 0 0 6px;
         position: sticky;
         top: 0;
         height: 100vh;
     }
 
-    #content {
+    .app-with-sidebar .content {
         flex: 1 1 0;
         min-width: 0;
     }
-}
-
-.offcanvas-body {
-    overflow-y: visible;
 }
