@@ -1,38 +1,88 @@
-export default {
+const ContainerWithResizer = {
 
-    setSidebarWidth(e, px) {
+    create(e) {
 
-        const max = Math.round(window.innerWidth * 0.6);
-        const width = Math.min(Math.max(Math.round(px), 200), max);
-        e.style.setProperty('--sidebar-width', width + 'px');
+        const id = "resizer-" + (++ContainerWithResizer._id);
+
+        const resizer = {...ContainerWithResizer}
+        resizer.container = e;
+
+        resizer.container.setAttribute("id", id);
+
+        resizer.sidebar = resizer.container.querySelector('.sidebar')
+        if (!resizer.sidebar)
+            throw "Sidebar not found: .sidebar"
+
+        const resizeBar = resizer.container.querySelector('.sidebarResizer')
+        if (!resizeBar)
+            throw "Sidebar not found: .sidebarResizer"
+        resizeBar.addEventListener('pointerdown', (e) => {
+            resizer.startSidebarResize(e)
+        });
+
+        const openButton = resizer.container.querySelector('.btn-open')
+        if (openButton) {
+            openButton.setAttribute("data-bs-target", "#" + id + " .sidebar")
+        }
+
+        const closeButton = resizer.container.querySelector('.btn-close')
+        if (closeButton) {
+            closeButton.addEventListener('click', () => {
+                resizer.hideSidebar()
+            });
+        }
+    },
+
+    _id: 0,
+    id: null,
+
+    container: null,
+    sidebar: null,
+
+    sidebarMinWidth: 200,
+    sidebarMaxWithPercent: 0.6,
+
+
+    setSidebarWidth(px) {
+        const self = this;
+
+        const max = Math.round(self.container.clientWidth * self.sidebarMaxWithPercent);
+        const width = Math.min(Math.max(Math.round(px), self.sidebarMinWidth), max);
+        self.container.style.setProperty('--sidebar-width', width + 'px');
     },
 
     startSidebarResize(event) {
         const self = this;
-        const app = event.target.closest(".app-with-sidebar");
-        const sidebar = app.querySelector('.sidebar')
 
         const startX = event.clientX;
-        const startWidth = sidebar.getBoundingClientRect().width;
+        const startWidth = self.sidebar.getBoundingClientRect().width;
 
-        const move = (e) => self.setSidebarWidth(app, startWidth + e.clientX - startX);
+        const move = (e) => self.setSidebarWidth(startWidth + e.clientX - startX);
         const stop = (e) => {
-            window.removeEventListener('pointermove', move);
-            window.removeEventListener('pointerup', stop);
-            self.setSidebarWidth(app, startWidth + e.clientX - startX);
+            self.container.removeEventListener('pointermove', move);
+            self.container.removeEventListener('pointerup', stop);
+            self.setSidebarWidth(startWidth + e.clientX - startX);
         };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', stop);
+        self.container.addEventListener('pointermove', move);
+        self.container.addEventListener('pointerup', stop);
         event.preventDefault();
     },
 
-    // Small screens: close the off-canvas menu after navigating
-    hideSidebar(event) {
-        const app = event.target.closest(".app-with-sidebar");
-        const sidebar = app.querySelector('.sidebar')
-        const offcanvas = sidebar && window.bootstrap && bootstrap.Offcanvas.getInstance(sidebar);
+    showSidebar() {
+        const self = this;
+        const offcanvas = self.sidebar && window.bootstrap && bootstrap.Offcanvas.getInstance(self.sidebar);
+        console.log("offcanvas", offcanvas)
+        if (offcanvas)
+            offcanvas.show();
+    },
+
+    hideSidebar() {
+        const self = this;
+        const offcanvas = self.sidebar && window.bootstrap && bootstrap.Offcanvas.getInstance(self.sidebar);
         if (offcanvas)
             offcanvas.hide();
     }
 
 };
+
+export default ContainerWithResizer

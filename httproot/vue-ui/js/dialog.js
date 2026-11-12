@@ -10,7 +10,7 @@ export default {
                             <h5 class="modal-title"></h5>
                             <button type="button" class="btn-close dismiss" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body p-0">
                             
                         </div>
                         <div class="modal-footer">
